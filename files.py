@@ -2,15 +2,25 @@ import os
 import re
 from zipfile import ZipFile
 
+archive_pattern = re.compile(r'^.*\.(zip|jar)$')
+java_pattern = re.compile(r'^.*\.(java)$')
 
-def list_files(directory: str = '.') -> list:
+
+def type_filter(types: list):
+    def test(path: str):
+        return path.split('.')[-1] in types
+    return test
+
+
+def list_files(directory: str = '.', type_filter=lambda f: True) -> list:
     """
     Returns a list of files (deeply) located in the given directory.
 
     :param directory: directory to search for files
     :return: the list of files
     """
-    return [p for ps in [[os.path.join(d, file) for file in f] for (d, _, f) in os.walk(directory)] for p in ps]
+    return [p for ps in [[os.path.join(d, file) for file in f] for (d, _, f) in os.walk(directory)] for p in ps if
+            type_filter(p)]
 
 
 def list_directories(directory: str = '.') -> list:
@@ -41,13 +51,14 @@ def extract(directory='.', suffix: str = 'content', pattern: re.Pattern = re.com
     directories = [directory]
     extractions = []
     while len(directories) > 0:
-        files = list_files(directories)
+        files = list_files(directories[0])
         directories.remove(directories[0])
         for file in files:
             if pattern.match(file):
-                with ZipFile(file) as archive_file:
+                archive_file = file
+                with ZipFile(file) as archive:
                     archive_directory = f'{file}_{suffix}'
-                    archive_file.extractall(archive_directory)
+                    archive.extractall(archive_directory)
                     directories.append(archive_directory)
                     extractions.append({
                         'file': archive_file,
@@ -56,7 +67,7 @@ def extract(directory='.', suffix: str = 'content', pattern: re.Pattern = re.com
     return extractions
 
 
-def compress(dirs: list = ['.'], suffix: str = 'content'):
+def compress(dirs: list = '.', suffix: str = 'content'):
     for d in list_directories(dirs):
         assert isinstance(d, str)
         if not d.endswith(f'_{suffix}'):
